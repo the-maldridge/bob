@@ -1,0 +1,21 @@
+#!/bin/sh
+
+for tmpl in tmpl/*.tpl ; do
+    . "$tmpl"
+    printf "%s:%s\n" "$name" "$version"
+    if [ ! -f "out/$name/$version/$name" ] ; then
+        echo "File does not exist, building now."
+
+        cID=$(
+            docker run \
+                   -v "$(pwd)/$tmpl:/tmp/tpl" \
+                   -v "$(pwd)/cHelper:/tmp/bob" \
+                   -v "$(pwd)/stage:/stage" \
+                   -dt "$image")
+        echo "$cID"
+
+        docker exec -it "$cID" "/bin/sh" '/tmp/bob'
+
+        docker kill "$cID"
+    fi
+done
