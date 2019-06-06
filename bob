@@ -1,30 +1,56 @@
 #!/bin/sh
 
-. ./conf
-
-. "./repo/$BOB_REPO_MODE.sh"
-
+# Setup the basedir name.  The way this is built should allow the
+# script to be called from anywhere, and the "relative" paths within
+# the source will continue to work just fine.
 BOB_BASEDIR=$(readlink -f "$0")
 BOB_BASEDIR=$(dirname "$BOB_BASEDIR")
 export BOB_BASEDIR
 
-for tmpl in tmpl/*.tpl ; do
-    . "$tmpl"
-    printf "%s:%s\n" "$name" "$version"
-    if ! artifact_exists "$name" "$version" ; then
-        echo "File does not exist, building now."
+# First load the configuration for bob.  This needs to load first
+# since other parts of the want loop needs configuration from here.
+. "$BOB_BASEDIR/conf"  || echo "Configuration is missing!" && exit 1
 
-        cID=$(
-            docker run \
+# Based on the configuration, bring in the functions that handle the
+# repository management.  Functions here need to handle checking for
+# and writing artifacts to the repository.
+. "$BOB_BASEDIR/repo/$BOB_REPO_MODE.sh" || echo "Invalid repository mode!" || exit 2
+
+# This is the want loop.  The want loop figures out what you want and
+# tries to get to that state.  It does this by iterating over the
+# templates in the tmpl directory.
+for tmpl in tmpl/*.tpl ; do
+    # Load in this template, this will overwrite the vars from the
+    # previous one.
+    . "$tmpl" || echo "Bad template: $tmpl" && continue
+    printf "%s:%s : " "$name" "$version"
+
+    # Check if the artifact exists.  If it does, then we continue
+    # around.  If it does not then jump in and build it.
+    if ! artifact_exists "$name" "$version" ; then
+        printf "File does not exist, building now.\n"
+
+        # Run the docker container.  The template is mounted in so
+        # that its build directive can be used.  The cHelper script
+        # allows bob to have a uniform interface to call templates.
+        # The stage directory is where the resulting artifact is to be
+        # written to.  The image needs to be called with a TTY
+        # attached in order to prevent images who's command is /bin/sh
+        # from exiting.
+        cID=$(docker run \
                    -v "$BOB_BASEDIR/$tmpl:/tmp/tpl" \
-                   -v "$BOB_BASEDIR/cHelper:/tmp/bob" \
+                   -v "$BOB_BASEDIR/cHelper:/tmp/cHelper" \
                    -v "$BOB_BASEDIR/stage:/stage" \
                    -dt "$image")
-        echo "$cID"
 
-        docker exec -it "$cID" "/bin/sh" '/tmp/bob'
+        docker exec -it "$cID" "/bin/sh" '/tmp/cHelper'
 
         docker kill "$cID"
+
+        # Write the artifact out to the repository.  This may spin
+        # fairly slowly if the repository is remote.
         write_artifact "$name" "$version"
+    else
+        printf "Exists\n"
     fi
 done

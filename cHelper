@@ -1,4 +1,9 @@
 #!/bin/sh
 
-. /tmp/tpl
+# The template is always present at /tmp/tpl, and needs to be part of
+# the running process environment in order to work.
+. /tmp/tpl || echo "Could not load template" && exit 1
+
+# Build is a function defined in the template.  This function will
+# take care of actually running the build.
 build

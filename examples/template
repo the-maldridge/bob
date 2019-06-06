@@ -1,0 +1,58 @@
+#!/bin/sh
+
+# This example template builds HashiCorp Nomad linked to the musl C
+# library for Linux.  It shows some more advanced functionality that
+# can be placed in a template.
+
+# All templates must define certain metadata.  This includes the name,
+# version, and docker image that will be used.
+name="nomad"
+version="0.9.1"
+image="golang:1.10-alpine"
+
+# build is called inside the container to generate the artifact.  It
+# has one job: to build the artifact and place it in
+# /stage/$name-$version.
+build() {
+    # Since you specify the container, you can use its package manager
+    # if present to install additional tools and packages.
+    apk add \
+        bash \
+        g++ \
+        git \
+        linux-headers \
+        musl-dev
+
+    # Hashicorp Build
+    cd $GOPATH || exit 1
+    mkdir -p src/github.com/hashicorp/nomad
+    cd src/github.com/hashicorp/nomad || exit 1
+
+    # Get source and apply any patches.
+    git clone -b v$version https://github.com/hashicorp/nomad.git .
+
+    # You can even do git gymnastics in the middle of the build,
+    # though this is not recommended.
+    echo "Applying patches"
+    git config --global user.email "build@ephemeral"
+    git config --global user.name "Ephemeral Build Cherrypicker"
+    for _p in 5537; do
+        echo "Applying patch number $_p"
+        PATCH="$(mktemp)"
+        wget -nv -O "$PATCH" "https://github.com/hashicorp/nomad/pull/$_p.patch"
+        git am "$PATCH"
+    done
+
+    # Run the build
+    echo "Building..."
+    go build \
+       -o bin/nomad \
+       -tags "nonvidia release ui" \
+       --ldflags '-linkmode external -extldflags "-static"' \
+       .
+
+    # The final and perhaps most important task for build() to
+    # complete is to move the artifact to the stage directory where
+    # bob will take back over and push it to the repository.
+    cp bin/nomad "/stage/$name-$version"
+}
