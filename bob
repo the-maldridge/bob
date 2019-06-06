@@ -1,21 +1,30 @@
 #!/bin/sh
 
+. ./conf
+
+. "./repo/$BOB_REPO_MODE.sh"
+
+BOB_BASEDIR=$(readlink -f "$0")
+BOB_BASEDIR=$(dirname "$BOB_BASEDIR")
+export BOB_BASEDIR
+
 for tmpl in tmpl/*.tpl ; do
     . "$tmpl"
     printf "%s:%s\n" "$name" "$version"
-    if [ ! -f "out/$name/$version/$name" ] ; then
+    if ! artifact_exists "$name" "$version" ; then
         echo "File does not exist, building now."
 
         cID=$(
             docker run \
-                   -v "$(pwd)/$tmpl:/tmp/tpl" \
-                   -v "$(pwd)/cHelper:/tmp/bob" \
-                   -v "$(pwd)/stage:/stage" \
+                   -v "$BOB_BASEDIR/$tmpl:/tmp/tpl" \
+                   -v "$BOB_BASEDIR/cHelper:/tmp/bob" \
+                   -v "$BOB_BASEDIR/stage:/stage" \
                    -dt "$image")
         echo "$cID"
 
         docker exec -it "$cID" "/bin/sh" '/tmp/bob'
 
         docker kill "$cID"
+        write_artifact "$name" "$version"
     fi
 done
