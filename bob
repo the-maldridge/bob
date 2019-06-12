@@ -9,20 +9,23 @@ export BOB_BASEDIR
 
 # First load the configuration for bob.  This needs to load first
 # since other parts of the want loop needs configuration from here.
-. "$BOB_BASEDIR/conf"  || echo "Configuration is missing!" && exit 1
+echo "Reading configuration data"
+. "$BOB_BASEDIR/conf"  || { echo "Configuration is missing!" ; exit 1 ; }
 
 # Based on the configuration, bring in the functions that handle the
 # repository management.  Functions here need to handle checking for
 # and writing artifacts to the repository.
-. "$BOB_BASEDIR/repo/$BOB_REPO_MODE.sh" || echo "Invalid repository mode!" || exit 2
+echo "Loading repository driver"
+. "$BOB_BASEDIR/repo/$BOB_REPO_MODE.sh" || { echo "Invalid repository mode!" ; exit 2 ; }
 
 # This is the want loop.  The want loop figures out what you want and
 # tries to get to that state.  It does this by iterating over the
 # templates in the tmpl directory.
+echo "Entering the want loop"
 for tmpl in tmpl/*.tpl ; do
     # Load in this template, this will overwrite the vars from the
     # previous one.
-    . "$tmpl" || echo "Bad template: $tmpl" && continue
+    . "$tmpl" || { echo "Bad template: $tmpl" ; continue ; }
     printf "%s:%s : " "$name" "$version"
 
     # Check if the artifact exists.  If it does, then we continue
