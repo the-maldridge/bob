@@ -10,8 +10,7 @@ fi
 # This function checks the remote bucket to determine if the object
 # exists.  The path is $BOB_S3_BASE/$name/$version/$name.
 artifact_exists() {
-    aws s3api head-object --bucket "$BOB_S3_BUCKET" --key "$BOB_S3_BASE/$1/$2/$1" || absent=true
-    if $absent ; then
+    if ! aws s3api head-object --bucket "$BOB_S3_BUCKET" --key "$BOB_S3_BASE/$1/$2/$1" >/dev/null 2>&1 ; then
         return 1
     else
         return 0
